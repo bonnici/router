@@ -1228,6 +1228,35 @@ impl Telemetry {
         operation_kind: OperationKind,
         operation_subtype: Option<OperationSubType>,
     ) {
+        // temp code here
+        // todo need to compare key and refs for metrics and optionally use the new one instead
+        if let Some(usage_reporting) =
+            context.extensions().lock().get::<UsageReporting>().cloned()
+        {
+            let old_key = usage_reporting.stats_report_key.to_string();
+            let old_refs: HashMap<String, crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType> = usage_reporting
+                .referenced_fields_by_type
+                .into_iter()
+                .map(|(k, v)| (k, convert(v)))
+                .collect();
+            
+            println!("old_key: {}", old_key);
+            println!("old_refs: {:?}", old_refs);
+        }
+        if let Some(ex_usage_reporting) =
+            context.extensions().lock().get::<crate::services::layers::query_analysis::ExperimentalUsageReporting>().cloned()
+        {
+            let new_key = ex_usage_reporting.stats_report_key.to_string();
+            let new_refs: HashMap<String, crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType> = ex_usage_reporting
+                .referenced_fields_by_type
+                .into_iter()
+                .map(|(k, v)| (k, ex_convert(v)))
+                .collect();
+            
+            println!("new_key: {}", new_key);
+            println!("new_refs: {:?}", new_refs);
+        }
+
         let metrics = if let Some(usage_reporting) =
             context.extensions().lock().get::<UsageReporting>().cloned()
         {
@@ -1599,6 +1628,16 @@ fn licensed_operation_count(stats_report_key: &str) -> u64 {
 
 fn convert(
     referenced_fields: router_bridge::planner::ReferencedFieldsForType,
+) -> crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType {
+    crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType {
+        field_names: referenced_fields.field_names,
+        is_interface: referenced_fields.is_interface,
+    }
+}
+
+//temp
+fn ex_convert(
+    referenced_fields: crate::services::layers::query_analysis::ExperimentalReferencedFieldsForType,
 ) -> crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType {
     crate::plugins::telemetry::apollo_exporter::proto::reports::ReferencedFieldsForType {
         field_names: referenced_fields.field_names,

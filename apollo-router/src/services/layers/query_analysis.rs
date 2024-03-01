@@ -21,6 +21,11 @@ use crate::spec::Schema;
 use crate::Configuration;
 use crate::Context;
 
+// new temporary imports
+use std::collections::HashMap;
+use serde::Deserialize;
+use serde::Serialize;
+
 /// [`Layer`] for QueryAnalysis implementation.
 #[derive(Clone)]
 #[allow(clippy::type_complexity)]
@@ -35,6 +40,35 @@ pub(crate) struct QueryAnalysisLayer {
 struct QueryAnalysisKey {
     query: String,
     operation_name: Option<String>,
+}
+
+// probably need to move these somewhere else
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+/// A list of fields that will be resolved
+/// for a given type
+pub(crate) struct ExperimentalReferencedFieldsForType {
+    /// names of the fields queried
+    #[serde(default)]
+    pub(crate) field_names: Vec<String>,
+    /// whether the field is an interface
+    #[serde(default)]
+    pub(crate) is_interface: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+/// UsageReporting fields that will be used to send stats to uplink/studio. This version
+/// of the data is generated using apollo-rs instead of the bridge query planner.
+pub(crate) struct ExperimentalUsageReporting {
+    /// The `stats_report_key` is a unique identifier derived from schema and query.
+    /// Metric data sent to Studio must be aggregated
+    /// via grouped key of (`client_name`, `client_version`, `stats_report_key`).
+    pub(crate) stats_report_key: String,
+    /// a list of all types and fields referenced in the query
+    #[serde(default)]
+    pub(crate) referenced_fields_by_type: HashMap<String, ExperimentalReferencedFieldsForType>,
 }
 
 impl QueryAnalysisLayer {
@@ -108,6 +142,7 @@ impl QueryAnalysisLayer {
             None => {
                 let span = tracing::info_span!("parse_query", "otel.kind" = "INTERNAL");
                 let doc = span.in_scope(|| self.parse_document(&query));
+                // doc here contains the AST
 
                 let context = Context::new();
 
@@ -144,12 +179,110 @@ impl QueryAnalysisLayer {
             Some(c) => c,
         };
 
+        let cloned_doc = doc.clone();
+
         request.context.extend(&context);
         request
             .context
             .extensions()
             .lock()
             .insert::<ParsedDocument>(doc);
+
+        // temporary hacky code starts here
+
+        // this works for the query below but obviously needs more work
+        /*
+        query Testing {
+            randomRecipe {
+                description
+                prepTime
+            }
+        }
+        */
+
+        // println!("executable anonymous_operation: {:?}", &cloned_doc.executable.anonymous_operation);
+        // println!("executable fragments: {:?}", &cloned_doc.executable.fragments);
+        // println!("executable named_operations: {:?}", &cloned_doc.executable.named_operations);
+
+        let (_name, operation) = cloned_doc.executable.named_operations.first().unwrap();
+        // println!("executable operation name: {}", name);
+        // println!("executable operation: {}", operation);
+        // println!("executable operation type: {}", operation.operation_type);
+        // println!("executable operation selection set type: {}", operation.selection_set.ty);
+
+        let query_fields = operation.selection_set.selections
+            .iter()
+            .map(|x| x.as_field().unwrap().name.to_string())
+            .collect();
+
+        let mut ref_fields = HashMap::from([
+            (operation.selection_set.ty.to_string(), ExperimentalReferencedFieldsForType {
+                field_names: query_fields,
+                is_interface: false,
+            })
+        ]);
+
+        for selection in operation.selection_set.selections.iter() {
+            let field = selection.as_field().unwrap();
+            // println!("field name: {}", field.name);
+            // println!("field type: {}", field.definition.ty);
+            // println!("field selection set type: {}", field.selection_set.ty);
+
+            /*
+            for field_selection in field.selection_set.selections.iter() {
+                let child_field = field_selection.as_field().unwrap();
+                println!("child_field name: {}", child_field.name);
+                println!("child_field type: {}", child_field.definition.ty);
+            }
+            */
+
+            let child_fields = field.selection_set.selections
+                .iter()
+                .map(|x| x.as_field().unwrap().name.to_string())
+                .collect();
+            
+            ref_fields.insert(field.selection_set.ty.to_string(), ExperimentalReferencedFieldsForType {
+                field_names: child_fields,
+                is_interface: false,
+            });
+        }
+
+        // println!("ast: {}",  &cloned_doc.ast);
+
+        let definitions = cloned_doc.ast.definitions.clone();
+        let operation_def = definitions[0].as_operation_definition().unwrap().clone();
+
+        let operation_body = operation_def.to_string();
+        let operation_name = operation_def.name.as_ref().unwrap().to_string();
+        // println!("operation_body: {}", operation_body);
+        // println!("operation_name: {}", operation_name);
+
+        let whitespace_regex = regex::Regex::new(r"\s+").unwrap();
+        let stripped_body = whitespace_regex.replace_all(&operation_body, " ").to_string();
+        // println!("stripped_body: {}", stripped_body);
+
+        /*
+        let query_field = operation_def.selection_set[0].as_field().unwrap().name.to_string();
+        println!("query_field: {}", query_field);
+
+        for selection in operation_def.selection_set.iter() {
+            // println!("selection: {}", selection);
+            let field = selection.as_field().unwrap().clone();
+            let children: Vec<String> = field.selection_set
+                .iter()
+                .map(|x| x.as_field().unwrap().name.to_string())
+                .collect();
+            println!("field name: {}", field.name);
+            println!("field children: {:?}", children);
+        }
+        */
+
+        request.context.extensions().lock().insert(ExperimentalUsageReporting {
+            stats_report_key: format!("# {}\n{}", operation_name, stripped_body),
+            referenced_fields_by_type: ref_fields,
+        });
+
+        // temporary hacky code ends here
 
         Ok(SupergraphRequest {
             supergraph_request: request.supergraph_request,

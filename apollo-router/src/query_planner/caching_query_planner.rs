@@ -357,6 +357,7 @@ where
                     let err_res = Query::check_errors(&doc);
 
                     if let Err(error) = err_res {
+                        // error "signature" is inserted here
                         request.context.extensions().lock().insert(UsageReporting {
                             stats_report_key: error.get_error_key().to_string(),
                             referenced_fields_by_type: HashMap::new(),
@@ -384,6 +385,7 @@ where
                             }
 
                             if let Some(QueryPlannerContent::Plan { plan, .. }) = &content {
+                                // signature and ref fiends are inserted here
                                 context
                                     .extensions()
                                     .lock()
@@ -422,6 +424,7 @@ where
             match res {
                 Ok(content) => {
                     if let QueryPlannerContent::Plan { plan, .. } = &content {
+                        // signature and ref fiends are inserted here?
                         context
                             .extensions()
                             .lock()
@@ -436,6 +439,7 @@ where
                 Err(error) => {
                     match error.deref() {
                         QueryPlannerError::PlanningErrors(pe) => {
+                            // error "signature" is inserted here
                             request
                                 .context
                                 .extensions()
@@ -443,6 +447,7 @@ where
                                 .insert(pe.usage_reporting.clone());
                         }
                         QueryPlannerError::SpecError(e) => {
+                            // error "signature" is inserted here
                             request.context.extensions().lock().insert(UsageReporting {
                                 stats_report_key: e.get_error_key().to_string(),
                                 referenced_fields_by_type: HashMap::new(),
