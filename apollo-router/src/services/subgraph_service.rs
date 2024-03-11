@@ -708,6 +708,7 @@ async fn call_http(
         | (Ok(ContentType::ApplicationJson), Some(Ok(body)), true) => {
             // Application graphql json expects valid graphql response
             // Application json expects valid graphql response if 2xx
+            // here 
             tracing::debug_span!("parse_subgraph_response").in_scope(|| {
                 // Application graphql json expects valid graphql response
                 graphql::Response::from_bytes(service_name, body).unwrap_or_else(|error| {
@@ -751,6 +752,11 @@ async fn call_http(
             graphql_response
         }
     };
+
+    // println!("response data: {}", graphql_response.data.clone().unwrap());
+    // graphql_response.data = Some(crate::json_ext::Value::String("invalid request".into()));
+    // println!("response data after: {}", graphql_response.data.clone().unwrap());
+    // todo maybe parse subgraph response here based on subgraph request and schema?
 
     // Add an error for response codes that are not 2xx
     if !parts.status.is_success() {

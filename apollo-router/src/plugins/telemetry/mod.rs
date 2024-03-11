@@ -1196,6 +1196,15 @@ impl Telemetry {
                                         );
                                     }
                                 } else {
+                                    // could get response data here and pass it in to update_apollo_metrics but it's just a
+                                    // json value so we don't get type information
+                                    let resp_data = response.data.clone();
+                                    println!("response data in telemetry: {}", resp_data.unwrap());
+
+                                    // maybe we can parse the response using the schema?
+                                    // maybe we can create a list of possible enum paths in the response frp, the query analysis
+                                    // layer and look them up in the response body here?
+
                                     // If it's the last response
                                     if !response.has_next.unwrap_or(false) {
                                         Self::update_apollo_metrics(
@@ -1229,6 +1238,25 @@ impl Telemetry {
         operation_subtype: Option<OperationSubType>,
     ) {
         // temp code here
+
+        /*
+        if let Some(doc) =
+            context.extensions().lock().get::<crate::services::layers::query_analysis::ParsedDocument>().cloned()
+        {
+            let (_name, operation) = doc.executable.named_operations.first().unwrap();
+
+            for selection in operation.selection_set.selections.iter() {
+                let field = selection.as_field().unwrap();
+                //println!("field name: {}", field.name);
+            }
+        }
+        */
+
+        // println!("context: {:?}", context);
+
+        //let extensions = context.extensions().lock().values().cloned().collect();
+        //println!("extensions: {:?}", extensions);
+
         // todo need to compare key and refs for metrics and optionally use the new one instead
         if let Some(usage_reporting) =
             context.extensions().lock().get::<UsageReporting>().cloned()
