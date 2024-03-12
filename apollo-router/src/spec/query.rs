@@ -44,6 +44,7 @@ use crate::spec::Schema;
 use crate::spec::Selection;
 use crate::spec::SpecError;
 use crate::Configuration;
+use crate::Context;
 
 pub(crate) mod change;
 pub(crate) mod subselections;
@@ -51,6 +52,17 @@ pub(crate) mod transform;
 pub(crate) mod traverse;
 
 pub(crate) const TYPENAME: &str = "__typename";
+
+// probably need to move this somewhere else
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+/// UsageReporting fields that will be used to send stats to uplink/studio. This version
+/// of the data is generated using apollo-rs instead of the bridge query planner.
+pub(crate) struct ResponseEnumUsage {
+    #[serde(default)]
+    pub(crate) referenced_enums_by_name: HashMap<String, HashSet<String>>,
+}
 
 /// A GraphQL query.
 #[derive(Derivative, Serialize, Deserialize)]
@@ -136,7 +148,13 @@ impl Query {
         variables: Object,
         schema: &Schema,
         defer_conditions: BooleanValues,
+        context: &Context,
     ) -> Vec<Path> {
+        // todo do this better
+        context.extensions().lock().insert(ResponseEnumUsage {
+            referenced_enums_by_name: HashMap::new(),
+        });
+
         let data = std::mem::take(&mut response.data);
 
         let original_operation = self.operation(operation_name);
@@ -177,6 +195,7 @@ impl Query {
                                     &mut input,
                                     &mut output,
                                     &mut Vec::new(),
+                                    &context,
                                 ) {
                                     Ok(()) => output.into(),
                                     Err(InvalidValue) => Value::Null,
@@ -229,6 +248,7 @@ impl Query {
                             &mut input,
                             &mut output,
                             &mut Vec::new(),
+                            &context,
                         ) {
                             Ok(()) => output.into(),
                             Err(InvalidValue) => Value::Null,
@@ -393,6 +413,7 @@ impl Query {
         path: &mut Vec<ResponsePathElement<'b>>,
         parent_type: &executable::Type,
         selection_set: &'a [Selection],
+        context: &Context,
     ) -> Result<(), InvalidValue> {
         // for every type, if we have an invalid value, we will replace it with null
         // and return Ok(()), because values are optional by default
@@ -414,6 +435,7 @@ impl Query {
                     path,
                     field_type,
                     selection_set,
+                    &context,
                 ) {
                     Err(_) => Err(InvalidValue),
                     Ok(_) => {
@@ -468,6 +490,7 @@ impl Query {
                                 path,
                                 field_type,
                                 selection_set,
+                                &context,
                             );
                             path.pop();
                             res
@@ -541,6 +564,15 @@ impl Query {
                         return Ok(());
                     }
                     Some(ExtendedType::Enum(enum_type)) => {
+                        // println!("enum type name: {}", enum_type.name);
+                        // println!("enum type value: {}", input.as_str().unwrap());
+
+                        if let Some(c) = context.extensions().lock().get_mut::<ResponseEnumUsage>() {
+                            c.referenced_enums_by_name.entry(enum_type.name.to_string())
+                                .or_insert_with(HashSet::new)
+                                .insert(input.as_str().unwrap().to_string());
+                        };
+
                         return match input.as_str() {
                             Some(s) => {
                                 if enum_type.values.contains_key(s) {
@@ -615,6 +647,7 @@ impl Query {
                                 output_object,
                                 path,
                                 current_type,
+                                &context,
                             )
                             .is_err()
                         {
@@ -643,6 +676,7 @@ impl Query {
         path: &mut Vec<ResponsePathElement<'b>>,
         // the type under which we apply selections
         current_type: &executable::Type,
+        context: &Context,
     ) -> Result<(), InvalidValue> {
         // For skip and include, using .unwrap_or is legit here because
         // validate_variables should have already checked that
@@ -710,6 +744,7 @@ impl Query {
                             path,
                             current_type,
                             selection_set,
+                            &context,
                         );
                         path.pop();
                         res?
@@ -764,6 +799,7 @@ impl Query {
                             output,
                             path,
                             current_type,
+                            &context,
                         )?;
                     }
                 }
@@ -801,6 +837,7 @@ impl Query {
                                 output,
                                 path,
                                 current_type,
+                                &context,
                             )?;
                         }
                     } else {
@@ -822,6 +859,7 @@ impl Query {
         input: &mut Object,
         output: &mut Object,
         path: &mut Vec<ResponsePathElement<'b>>,
+        context: &Context,
     ) -> Result<(), InvalidValue> {
         for selection in selection_set {
             match selection {
@@ -861,6 +899,7 @@ impl Query {
                             path,
                             &field_type.0,
                             selection_set,
+                            &context,
                         );
                         path.pop();
                         res?
@@ -906,6 +945,7 @@ impl Query {
                         // FIXME: use `ast::Name` everywhere so fallible conversion isn’t needed
                         #[allow(clippy::unwrap_used)]
                         &FieldType::new_named(type_condition.try_into().unwrap()).0,
+                        &context,
                     )?;
                 }
                 Selection::FragmentSpread {
@@ -942,6 +982,7 @@ impl Query {
                             // FIXME: use `ast::Name` everywhere so fallible conversion isn’t needed
                             #[allow(clippy::unwrap_used)]
                             &FieldType::new_named(root_type_name.try_into().unwrap()).0,
+                            &context,
                         )?;
                     } else {
                         // the fragment should have been already checked with the schema

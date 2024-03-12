@@ -50,6 +50,7 @@ use crate::services::SubgraphServiceFactory;
 use crate::spec::query::subselections::BooleanValues;
 use crate::spec::Query;
 use crate::spec::Schema;
+use crate::Context as QueryContext;
 
 /// [`Service`] for query execution.
 #[derive(Clone)]
@@ -231,6 +232,7 @@ impl ExecutionService {
                         &schema,
                         &mut nullified_paths,
                         response,
+                        &context
                     )
                 }))
             })
@@ -247,6 +249,7 @@ impl ExecutionService {
         schema: &Arc<Schema>,
         nullified_paths: &mut Vec<Path>,
         mut response: Response,
+        context: &QueryContext,
     ) -> Option<Response> {
         // responses that would fall under a path that was previously nullified are not sent
         if response
@@ -316,6 +319,7 @@ impl ExecutionService {
                     variables.clone(),
                     schema.api_schema(),
                     variables_set,
+                    &context,
                 );
             }
 
@@ -327,9 +331,11 @@ impl ExecutionService {
                         variables.clone(),
                         schema.api_schema(),
                         variables_set,
+                        &context,
                     )
                     ,
             );
+
             nullified_paths.extend(paths);
         });
 

@@ -1285,6 +1285,12 @@ impl Telemetry {
             println!("new_refs: {:?}", new_refs);
         }
 
+        if let Some(enum_resp) =
+            context.extensions().lock().get::<crate::spec::query::ResponseEnumUsage>().cloned()
+        {
+            println!("enums in response: {:?}", enum_resp);
+        }
+
         let metrics = if let Some(usage_reporting) =
             context.extensions().lock().get::<UsageReporting>().cloned()
         {
