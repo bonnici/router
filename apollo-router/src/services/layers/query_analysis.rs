@@ -190,19 +190,13 @@ impl QueryAnalysisLayer {
 
         // temporary hacky code starts here
 
-        // this works for the query below but obviously needs more work
-        /*
-        query Testing {
-            randomRecipe {
-                description
-                prepTime
-            }
-        }
-        */
+        // this works for top level fields
 
         // println!("executable anonymous_operation: {:?}", &cloned_doc.executable.anonymous_operation);
         // println!("executable fragments: {:?}", &cloned_doc.executable.fragments);
         // println!("executable named_operations: {:?}", &cloned_doc.executable.named_operations);
+
+        let api_schema = self.schema.api_schema(); // todo: can we just use self.schema?
 
         let (_name, operation) = cloned_doc.executable.named_operations.first().unwrap();
         // println!("executable operation name: {}", name);
@@ -235,27 +229,6 @@ impl QueryAnalysisLayer {
             println!("field name: {}", field.name);
             println!("field type: {}", field.definition.ty);
             println!("field selection set type: {}", field.selection_set.ty);
-
-            for field_arg in field.arguments.iter() {
-                println!("field_arg name: {}", field_arg.name);
-                println!("field_arg value: {:?}", field_arg.value);
-                // field_arg value contains the entire input object with the undefined values missing 
-                // but only if the values were passed in-line.
-                // Can't easily get access to variables or type definitions here (i.e. we can't easily
-                // tell if a field is missing)
-            }
-
-            for field_def_arg in field.definition.arguments.iter() {
-                println!("field_def_arg name: {}", field_def_arg.name);
-                println!("field_def_arg type: {}", field_def_arg.ty);
-                println!("field_def_arg default: {:?}", field_def_arg.default_value);
-            }
-
-            for field_selection in field.selection_set.selections.iter() {
-                let child_field = field_selection.as_field().unwrap();
-                println!("child_field name: {}", child_field.name);
-                println!("child_field type: {}", child_field.definition.ty);
-            }
             */
 
             let child_fields = field.selection_set.selections
@@ -265,8 +238,54 @@ impl QueryAnalysisLayer {
             
             ref_fields.insert(field.selection_set.ty.to_string(), ExperimentalReferencedFieldsForType {
                 field_names: child_fields,
-                is_interface: false,
+                is_interface: false, // todo use value from below (or maybe the bridge always sends "false"?)
             });
+
+            for field_selection in field.selection_set.selections.iter() {
+                let child_field = field_selection.as_field().unwrap();
+                let child_field_type_name = child_field.definition.ty.to_string();
+                let child_field_schema_type = api_schema.definitions.types.get(child_field_type_name.as_str());
+                if let Some(unwrapped) = child_field_schema_type {
+                    if let apollo_compiler::schema::ExtendedType::Interface (x) = unwrapped {
+                        println!("found interface object {} of type {}", child_field.name.as_str(), x.name.as_str());
+                    }
+                }
+            }
+
+            for field_arg in field.arguments.iter() {
+                println!("field_arg name: {}", field_arg.name);
+                println!("field_arg value: {:?}", field_arg.value);
+
+                if let Some(field_arg_var) = field_arg.value.as_variable() {
+                    println!("found variable with name {}", field_arg_var.as_str());
+
+                    for (var_name, var_val) in request.supergraph_request.body().variables.iter() {
+                        if var_name.as_str() == field_arg_var.as_str() {
+                            println!("var val: {}", var_val);
+                        }
+                    }
+                }
+
+                for field_def_arg in field.definition.arguments.iter() {
+                    if field_def_arg.name == field_arg.name {
+                        println!("field_def_arg type: {}", field_def_arg.ty);
+                        println!("field_def_arg default: {:?}", field_def_arg.default_value);
+
+                        if field_def_arg.ty.is_named() {
+                            let schema_type = api_schema.definitions.types.get(field_def_arg.ty.inner_named_type().as_str());
+                            if let Some(unwrapped) = schema_type {
+                                if let apollo_compiler::schema::ExtendedType::InputObject (x) = unwrapped {
+                                    println!("found input object argument, listing all fields");
+                                    for (name, _def) in x.fields.iter() {
+                                        println!("field name: {}", name.to_string());
+                                        // println!("def name: {}", def.name.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // println!("ast: {}",  &cloned_doc.ast);
@@ -283,61 +302,10 @@ impl QueryAnalysisLayer {
         let stripped_body = whitespace_regex.replace_all(&operation_body, " ").to_string();
         // println!("stripped_body: {}", stripped_body);
 
-        // let query_field = operation_def.selection_set[0].as_field().unwrap().name.to_string();
-        // println!("query_field: {}", query_field);
-
-        /*
-        for selection in operation_def.selection_set.iter() {
-            println!("selection: {}", selection);
-            let field = selection.as_field().unwrap().clone();
-            let children: Vec<String> = field.selection_set
-                .iter()
-                .map(|x| x.as_field().unwrap().name.to_string())
-                .collect();
-            println!("field name: {}", field.name);
-            println!("field children: {:?}", children);
-
-            for field_arg in field.arguments.iter() {
-                println!("field_arg name: {}", field_arg.name);
-                println!("field_arg value: {}", field_arg.value);
-            }
-        }
-        */
-
         request.context.extensions().lock().insert(ExperimentalUsageReporting {
             stats_report_key: format!("# {}\n{}", operation_name, stripped_body),
             referenced_fields_by_type: ref_fields,
         });
-
-
-        // Below is example of getting type details from schema (to check for undefined input object fields)
-        let api_schema = self.schema.api_schema();
-        let recipe_type = api_schema.definitions.types.get("InputTypeWithDefault");
-        if let Some(unwrapped) = recipe_type {
-            if let apollo_compiler::schema::ExtendedType::InputObject (x) = unwrapped {
-                for (name, def) in x.fields.iter() {
-                    println!("field name: {}", name.to_string());
-                    println!("def name: {}", def.name.to_string());
-                }
-            }
-        }
-
-        let definitions = &self.schema.definitions;
-        let recipe_type_2 = definitions.types.get("InputTypeWithDefault");
-        if let Some(unwrapped_2) = recipe_type_2 {
-        if let apollo_compiler::schema::ExtendedType::InputObject (y) = unwrapped_2 {
-                for (name, def) in y.fields.iter() {
-                    println!("field 2 name: {}", name.to_string());
-                    println!("def 2 name: {}", def.name.to_string());
-                }
-            }
-        }
-        
-        // below is an example of getting variables from request
-        for (var_name, var_val) in request.supergraph_request.body().variables.iter() {
-            println!("var name: {}", var_name.as_str());
-            println!("var val: {}", var_val);
-        }
 
         // temporary hacky code ends here
 

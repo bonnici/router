@@ -1269,8 +1269,9 @@ impl Telemetry {
                 .collect();
             
             println!("old_key: {}", old_key);
-            println!("old_refs: {:?}", old_refs);
+            println!("old_refs: {}", serde_json::to_string(&old_refs).unwrap());
         }
+
         if let Some(ex_usage_reporting) =
             context.extensions().lock().get::<crate::services::layers::query_analysis::ExperimentalUsageReporting>().cloned()
         {
@@ -1282,7 +1283,7 @@ impl Telemetry {
                 .collect();
             
             println!("new_key: {}", new_key);
-            println!("new_refs: {:?}", new_refs);
+            println!("new_refs: {}", serde_json::to_string(&new_refs).unwrap());
         }
 
         if let Some(enum_resp) =
