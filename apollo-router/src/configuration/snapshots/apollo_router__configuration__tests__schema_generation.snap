@@ -1375,6 +1375,26 @@ expression: "&schema"
         }
       ]
     },
+    "experimental_apollo_signature_normalization_algorithm": {
+      "description": "Whether to use the legacy Apollo usage report signature normalization algorithm or a new one that includes more information and has better normalization. Only applies when using the new Rust Apollo usage report signature generation implementation.",
+      "default": "legacy",
+      "oneOf": [
+        {
+          "description": "Use the algorithm that matches the JavaScript-based implementation.",
+          "type": "string",
+          "enum": [
+            "legacy"
+          ]
+        },
+        {
+          "description": "Use a new algorithm that includes input object forms, normalized aliases and variable names, and removes some edge cases from the JS implementation that affected normalization.",
+          "type": "string",
+          "enum": [
+            "enhanced"
+          ]
+        }
+      ]
+    },
     "experimental_batching": {
       "description": "Batching configuration.",
       "default": {

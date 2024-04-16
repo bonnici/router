@@ -172,6 +172,13 @@ pub struct Configuration {
     #[serde(default)]
     pub(crate) experimental_apollo_metrics_generation_mode: ApolloMetricsGenerationMode,
 
+    /// Whether to use the legacy Apollo usage report signature normalization algorithm or a new one
+    /// that includes more information and has better normalization. Only applies when using the new
+    /// Rust Apollo usage report signature generation implementation.
+    #[serde(default)]
+    pub(crate) experimental_apollo_signature_normalization_algorithm:
+        ApolloSignatureNormalizationAlgorithm,
+
     /// Plugin configuration
     #[serde(default)]
     pub(crate) plugins: UserPlugins,
@@ -229,6 +236,19 @@ pub(crate) enum ApolloMetricsGenerationMode {
     Both,
 }
 
+/// Apollo usage report signature generation algorithm.
+#[derive(Clone, PartialEq, Eq, Default, Derivative, Serialize, Deserialize, JsonSchema)]
+#[derivative(Debug)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ApolloSignatureNormalizationAlgorithm {
+    /// Use the algorithm that matches the JavaScript-based implementation.
+    #[default]
+    Legacy,
+    /// Use a new algorithm that includes input object forms, normalized aliases and variable names, and removes some
+    /// edge cases from the JS implementation that affected normalization.
+    Enhanced,
+}
+
 impl<'de> serde::Deserialize<'de> for Configuration {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -256,6 +276,8 @@ impl<'de> serde::Deserialize<'de> for Configuration {
             experimental_chaos: Chaos,
             experimental_batching: Batching,
             experimental_apollo_metrics_generation_mode: ApolloMetricsGenerationMode,
+            experimental_apollo_signature_normalization_algorithm:
+                ApolloSignatureNormalizationAlgorithm,
         }
         let ad_hoc: AdHocConfiguration = serde::Deserialize::deserialize(deserializer)?;
 
@@ -276,6 +298,9 @@ impl<'de> serde::Deserialize<'de> for Configuration {
             .experimental_batching(ad_hoc.experimental_batching)
             .experimental_apollo_metrics_generation_mode(
                 ad_hoc.experimental_apollo_metrics_generation_mode,
+            )
+            .experimental_apollo_signature_normalization_algorithm(
+                ad_hoc.experimental_apollo_signature_normalization_algorithm,
             )
             .build()
             .map_err(|e| serde::de::Error::custom(e.to_string()))
@@ -314,6 +339,9 @@ impl Configuration {
         uplink: Option<UplinkConfig>,
         experimental_api_schema_generation_mode: Option<ApiSchemaMode>,
         experimental_apollo_metrics_generation_mode: Option<ApolloMetricsGenerationMode>,
+        experimental_apollo_signature_normalization_algorithm: Option<
+            ApolloSignatureNormalizationAlgorithm,
+        >,
         experimental_batching: Option<Batching>,
     ) -> Result<Self, ConfigurationError> {
         #[cfg(not(test))]
@@ -342,6 +370,7 @@ impl Configuration {
             experimental_chaos: chaos.unwrap_or_default(),
             experimental_api_schema_generation_mode:  experimental_api_schema_generation_mode.unwrap_or_default(),
             experimental_apollo_metrics_generation_mode:  experimental_apollo_metrics_generation_mode.unwrap_or_default(),
+            experimental_apollo_signature_normalization_algorithm:  experimental_apollo_signature_normalization_algorithm.unwrap_or_default(),
             plugins: UserPlugins {
                 plugins: Some(plugins),
             },
@@ -391,6 +420,9 @@ impl Configuration {
         experimental_batching: Option<Batching>,
         experimental_api_schema_generation_mode: Option<ApiSchemaMode>,
         experimental_apollo_metrics_generation_mode: Option<ApolloMetricsGenerationMode>,
+        experimental_apollo_signature_normalization_algorithm: Option<
+            ApolloSignatureNormalizationAlgorithm,
+        >,
     ) -> Result<Self, ConfigurationError> {
         let configuration = Self {
             validated_yaml: Default::default(),
@@ -405,6 +437,8 @@ impl Configuration {
                 .unwrap_or_default(),
             experimental_apollo_metrics_generation_mode:
                 experimental_apollo_metrics_generation_mode.unwrap_or_default(),
+            experimental_apollo_signature_normalization_algorithm:
+                experimental_apollo_signature_normalization_algorithm.unwrap_or_default(),
             plugins: UserPlugins {
                 plugins: Some(plugins),
             },
