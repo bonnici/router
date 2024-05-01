@@ -238,7 +238,6 @@ pub(crate) enum ApolloMetricsGenerationMode {
     Both,
 }
 
-<<<<<<< HEAD
 /// Apollo usage report signature generation algorithm.
 #[derive(Clone, PartialEq, Eq, Default, Derivative, Serialize, Deserialize, JsonSchema)]
 #[derivative(Debug)]
@@ -250,7 +249,8 @@ pub(crate) enum ApolloSignatureNormalizationAlgorithm {
     /// Use a new algorithm that includes input object forms, normalized aliases and variable names, and removes some
     /// edge cases from the JS implementation that affected normalization.
     Enhanced,
-=======
+}
+
 /// Query planner modes.
 #[derive(Clone, PartialEq, Eq, Default, Derivative, Serialize, Deserialize, JsonSchema)]
 #[derivative(Debug)]
@@ -264,7 +264,6 @@ pub(crate) enum QueryPlannerMode {
     /// Use Rust-based and Javascript-based implementations side by side, logging warnings if the
     /// implementations disagree.
     Both,
->>>>>>> dev
 }
 
 impl<'de> serde::Deserialize<'de> for Configuration {
@@ -293,9 +292,10 @@ impl<'de> serde::Deserialize<'de> for Configuration {
             batching: Batching,
             experimental_type_conditioned_fetching: bool,
             experimental_apollo_metrics_generation_mode: ApolloMetricsGenerationMode,
-<<<<<<< HEAD
             experimental_apollo_signature_normalization_algorithm:
                 ApolloSignatureNormalizationAlgorithm,
+            experimental_api_schema_generation_mode: ApiSchemaMode,
+            experimental_query_planner_mode: QueryPlannerMode,
         }
         let ad_hoc: AdHocConfiguration = serde::Deserialize::deserialize(deserializer)?;
 
@@ -321,11 +321,7 @@ impl<'de> serde::Deserialize<'de> for Configuration {
                 ad_hoc.experimental_apollo_signature_normalization_algorithm,
             )
             .build()
-            .map_err(|e| serde::de::Error::custom(e.to_string()))
-=======
-            experimental_api_schema_generation_mode: ApiSchemaMode,
-            experimental_query_planner_mode: QueryPlannerMode,
-        }
+            .map_err(|e| serde::de::Error::custom(e.to_string()));
         let ad_hoc: AdHocConfiguration = serde::Deserialize::deserialize(deserializer)?;
 
         let notify = Configuration::notify(&ad_hoc.apollo_plugins.plugins)
@@ -359,7 +355,6 @@ impl<'de> serde::Deserialize<'de> for Configuration {
         }
         .validate()
         .map_err(|e| serde::de::Error::custom(e.to_string()))
->>>>>>> dev
     }
 }
 
@@ -396,14 +391,11 @@ impl Configuration {
         experimental_type_conditioned_fetching: Option<bool>,
         batching: Option<Batching>,
         experimental_apollo_metrics_generation_mode: Option<ApolloMetricsGenerationMode>,
-<<<<<<< HEAD
+        experimental_batching: Option<Batching>,
+        experimental_query_planner_mode: Option<QueryPlannerMode>,
         experimental_apollo_signature_normalization_algorithm: Option<
             ApolloSignatureNormalizationAlgorithm,
         >,
-        experimental_batching: Option<Batching>,
-=======
-        experimental_query_planner_mode: Option<QueryPlannerMode>,
->>>>>>> dev
     ) -> Result<Self, ConfigurationError> {
         let notify = Self::notify(&apollo_plugins)?;
 
@@ -418,17 +410,13 @@ impl Configuration {
             persisted_queries: persisted_query.unwrap_or_default(),
             limits: operation_limits.unwrap_or_default(),
             experimental_chaos: chaos.unwrap_or_default(),
-<<<<<<< HEAD
-            experimental_api_schema_generation_mode:  experimental_api_schema_generation_mode.unwrap_or_default(),
-            experimental_apollo_metrics_generation_mode:  experimental_apollo_metrics_generation_mode.unwrap_or_default(),
-            experimental_apollo_signature_normalization_algorithm:  experimental_apollo_signature_normalization_algorithm.unwrap_or_default(),
-=======
             experimental_api_schema_generation_mode: experimental_api_schema_generation_mode
                 .unwrap_or_default(),
             experimental_apollo_metrics_generation_mode:
                 experimental_apollo_metrics_generation_mode.unwrap_or_default(),
             experimental_query_planner_mode: experimental_query_planner_mode.unwrap_or_default(),
->>>>>>> dev
+            experimental_apollo_signature_normalization_algorithm:
+                experimental_apollo_signature_normalization_algorithm.unwrap_or_default(),
             plugins: UserPlugins {
                 plugins: Some(plugins),
             },
@@ -511,13 +499,10 @@ impl Configuration {
         experimental_api_schema_generation_mode: Option<ApiSchemaMode>,
         experimental_type_conditioned_fetching: Option<bool>,
         experimental_apollo_metrics_generation_mode: Option<ApolloMetricsGenerationMode>,
-<<<<<<< HEAD
+        experimental_query_planner_mode: Option<QueryPlannerMode>,
         experimental_apollo_signature_normalization_algorithm: Option<
             ApolloSignatureNormalizationAlgorithm,
         >,
-=======
-        experimental_query_planner_mode: Option<QueryPlannerMode>,
->>>>>>> dev
     ) -> Result<Self, ConfigurationError> {
         let configuration = Self {
             validated_yaml: Default::default(),
@@ -532,12 +517,9 @@ impl Configuration {
                 .unwrap_or_default(),
             experimental_apollo_metrics_generation_mode:
                 experimental_apollo_metrics_generation_mode.unwrap_or_default(),
-<<<<<<< HEAD
+            experimental_query_planner_mode: experimental_query_planner_mode.unwrap_or_default(),
             experimental_apollo_signature_normalization_algorithm:
                 experimental_apollo_signature_normalization_algorithm.unwrap_or_default(),
-=======
-            experimental_query_planner_mode: experimental_query_planner_mode.unwrap_or_default(),
->>>>>>> dev
             plugins: UserPlugins {
                 plugins: Some(plugins),
             },
